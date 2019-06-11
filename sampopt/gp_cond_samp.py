@@ -73,4 +73,4 @@ def samp_opt(minimizer, x0, x_past=[], eval_past=[], gp_params={}):
 
         return post_eval
 
-    minimizer(fun, x0, args=fun_args)
+    minimizer(fun, x0, args=fun_pos_args)

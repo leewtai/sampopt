@@ -34,3 +34,11 @@ can be computationally expensive.
 This package is designed to help obtain the samples of the extrema as done
 in the latter case using Gaussian Processes and off-the-shelf optimization
 routines.
+
+
+#### Example
+###### Example with known objective function
+
+###### Example with historical objective function evaluations
+
+###### Example with noisy historical objective function evaluations
