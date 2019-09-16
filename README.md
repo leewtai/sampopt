@@ -59,4 +59,9 @@ conditional probability has a nice closed form that we can exploit:
 
 P(x_i|DATA, x_{j<i}) \sim Gaussian
 
+#### Example
+###### Example with known objective function
 
+###### Example with historical objective function evaluations
+
+###### Example with noisy historical objective function evaluations
