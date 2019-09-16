@@ -34,3 +34,29 @@ can be computationally expensive.
 This package is designed to help obtain the samples of the extrema as done
 in the latter case using Gaussian Processes and off-the-shelf optimization
 routines.
+
+
+#### Details
+Most numerical solvers search along a sequence of values before converging
+on a solution. Let's call this fixed sequence x_0, \dots, x_k.
+If the objective function is deterministic, this sequence will remain fixed.
+
+However, if we reflect our uncertainty in the objective function by sampling
+multiple possible objective functions, it is natural to have multiple
+sequences. For any sequence, x_0, \dots, x_k, we can express its posterior
+distribution as:
+
+$P((f_0, x_0), (f_1, x_1), \dots, (f_k, x_k) | DATA)$
+$= \prod_{i} P(x_i|DATA, x_{j<i})$
+
+where $x_{j<i} = \{x_j : j<i\}$.
+
+The product form of the posterior suggests that we can realize the
+sequence by sequentially sampling from the conditional distributions.
+
+If we use Gaussian Processes to model the objective function. Then the
+conditional probability has a nice closed form that we can exploit:
+
+P(x_i|DATA, x_{j<i}) \sim Gaussian
+
+
