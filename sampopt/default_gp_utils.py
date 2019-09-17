@@ -4,6 +4,24 @@ import numpy as np
 
 
 def exp_cov(var, rho, x=None, y=None, d=None):
+    """ Computes the exponential covariance function
+    Note that this is a special case of the Matern covariance function with
+    nu=0.5
+
+    Args:
+        var (float): positive value that scales the variance, the smaller
+            this quantity the stronger the spatial dependence.
+        rho (float): positive value that scales the distance, the larger
+            this quantity the stronger the spatial dependence.
+        x (narray): location of the first set of data
+        y (narray): location of the second set of data
+        d (narray): Optional, this should be the same dimension as
+            (len(x), len(y))
+
+    Returns:
+        cov_matrix (narray): A covariance matrix where the i-th row
+            and j-th column represents the covariance between x[i] and y[j]
+    """
     if d is None:
         d = dist_matrix(x, y)
     return var * np.exp(-d / rho)
@@ -18,8 +36,11 @@ def dist_matrix(x0, x1,
 
     assert x0p == x1p
 
+    # Calculate the distance between each dimension separately
+    # using broadcasting from numpy
     for i in range(x0p):
-        dist += pos_fun(x0[:, i].reshape(-1, 1) - x1[:, i].reshape(1, -1))
+        dist += pos_fun(x0[:, i].reshape(-1, 1)
+                        - x1[:, i].reshape(1, -1))
 
     return rescale_fun(dist)
 

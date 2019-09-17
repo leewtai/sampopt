@@ -65,3 +65,9 @@ P(x_i|DATA, x_{j<i}) \sim Gaussian
 ###### Example with historical objective function evaluations
 
 ###### Example with noisy historical objective function evaluations
+
+
+
+# packages necessary
+python3.5, numpy, scipy (cholesky)
+utm, pandas (read csv)

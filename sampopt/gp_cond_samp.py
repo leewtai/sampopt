@@ -37,19 +37,25 @@ def update_chol(chol_old, cov_new, cross_cov):
     matrix with the new data points as A. Then adding the new data point
     would result in the
     L_f = [L_o          0
-           C*L_o^(-1)   A^(1/2)]
+           C*L_o^(-1)^T   A^(1/2)]
+    L_f * L_f^T = [L_o*L_o^T     C^T
+                   C             A   ]
     """
-    chol_new, lower_new = cho_factor(cov_new, lower=True)
+    # First form [L_o   0]
+    chol_f_top = np.concatenate((chol_old, np.zeros((chol_old.shape[0], 1))),
+                                axis=1)
+
+    # Form the new terms [C*L_o^(-1)^T   A^(1/2)]
     # TODO, make sure cross_cov is correct
-    chol_cross = solve_triangular(chol_new.T, cross_cov, lower=False)
+    chol_cross = solve_triangular(chol_old, cross_cov, lower=True)
+    chol_new, lower_new = cho_factor(cov_new, lower=True)
+    chol_f_bot = np.concatenate((chol_cross.T, chol_new), axis=1)
 
-    chol_left = np.concatenate((chol_old, chol_cross), axis=0)
-    chol_right = np.concatenate((np.zeros((chol_old.shape[0], 1)),
-                                 chol_new),
-                                axis=0)
-    chol_full = np.concatenate((chol_left, chol_right), axis=1)
+    chol_f = np.concatenate((chol_f_top,
+                             chol_f_bot),
+                            axis=0)
 
-    return chol_full
+    return chol_f
 
 
 def _sample_then_update(x, x_old, y_dev, chol, gp_params):
@@ -58,15 +64,16 @@ def _sample_then_update(x, x_old, y_dev, chol, gp_params):
     vxx = gp_params['cov_fun'](x=x, y=x, **gp_params['cov_params'])
     vyx = gp_params['cov_fun'](x=x_old, y=x, **gp_params['cov_params'])
 
+    # This can be sped up
     cond_mean, cond_cov, chol = mvn_cond_dist(
         mx, y_dev, vxx, vyx, chol)
-    print('sampled!')
+    print('sampling!')
     post_eval = np.random.multivariate_normal(cond_mean.flatten(), cond_cov)
 
     post_eval.resize(cond_mean.shape)
     x_old = np.concatenate((x_old, x), axis=0)
     y_dev = np.concatenate((y_dev, post_eval - mx), axis=0)
-    chol = update_chol(chol, vxx, vyx.T)
+    chol = update_chol(chol, vxx, vyx)
     print('updated')
 
     return post_eval
@@ -84,3 +91,6 @@ def samp_opt(minimizer, x0, x_past=[], eval_past=[], gp_params={}):
     return minimizer(_sample_then_update,
                      x0,
                      args=(x_old, y_dev, chol, gp_params))
+
+
+_sample_then_update(x0, x_old, y_dev, chol, gp_params)
