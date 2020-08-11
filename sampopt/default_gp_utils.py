@@ -30,6 +30,9 @@ def exp_cov(var, rho, x=None, y=None, d=None):
 def dist_matrix(x0, x1,
                 pos_fun=lambda x: np.power(x, 2),
                 rescale_fun=lambda x: np.power(x, 1/2)):
+    if len(x0.shape) < 2:
+        x0.resize(len(x0), 1)
+        x1.resize(len(x1), 1)
     x0n, x0p = x0.shape
     x1n, x1p = x1.shape
     dist = np.zeros((x0n, x1n))
@@ -49,16 +52,19 @@ def neg_log_likelihood_exp_gp(params, d, y):
     var = params[0]
     rho = params[1]
     mu = params[2]
-    if var < 0 or rho < 0:
+    noise_var = params[3]
+    if var < 0 or rho < 0 or noise_var < 0:
         return np.inf
-    cov_mat = exp_cov(var, rho, d=d)
+    cov_mat = exp_cov(var, rho, d=d) + np.diag(noise_var * np.ones(len(y)))
     sign, logdet = np.linalg.slogdet(cov_mat)
     assert sign > 0
 
     neg_log_likelihood = (
-        0.5 * np.matmul(np.matmul((y - mu).T, cov_mat),
-                        y - mu)
-        + cov_mat.shape[0] / 2 * (logdet + np.log(2 * pi))
-    )
+        0.5 * (y - mu).T.dot(np.linalg.inv(cov_mat)).dot(y - mu)
+        + (logdet / 2 + cov_mat.shape[0] / 2 * np.log(2 * pi)))
+    if isinstance(neg_log_likelihood, float):
+        out = neg_log_likelihood
+    else:
+        out = neg_log_likelihood.trace()
 
-    return neg_log_likelihood.trace()
+    return out
