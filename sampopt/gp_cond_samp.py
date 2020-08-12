@@ -59,7 +59,7 @@ def update_chol(chol_old, cov_new, cross_cov):
     # Form the new terms [C*L_o^(-1)^T   A^(1/2)]
     # TODO, make sure cross_cov is correct
     chol_cross = solve_triangular(chol_old, cross_cov, lower=True)
-    chol_new, lower_new = cho_factor(cov_new, lower=True)
+    chol_new, _ = cho_factor(cov_new, lower=True)
     chol_f_bot = np.concatenate((chol_cross.T, chol_new), axis=1)
 
     chol_f = np.concatenate((chol_f_top,
