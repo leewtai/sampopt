@@ -69,5 +69,4 @@ P(x_i|DATA, x_{j<i}) \sim Gaussian
 
 
 # packages necessary
-python3.5, numpy, scipy (cholesky)
-utm, pandas (read csv)
+python3.7, numpy, scipy (minimize, cho_factor)
