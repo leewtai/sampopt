@@ -55,8 +55,9 @@ def dist_matrix(x0, x1,
                 pos_fun=lambda x: np.power(x, 2),
                 rescale_fun=lambda x: np.power(x, 1/2)):
     if len(x0.shape) < 2:
-        x0.resize(len(x0), 1)
-        x1.resize(len(x1), 1)
+        x0 = x0.reshape(-1, 1)
+    if len(x1.shape) < 2:
+        x1 = x1.reshape(-1, 1)
     x0n, x0p = x0.shape
     x1n, x1p = x1.shape
     dist = np.zeros((x0n, x1n))

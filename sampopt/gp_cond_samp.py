@@ -50,16 +50,20 @@ def update_chol(chol_old, cov_new, cross_cov):
     L_f = [L_o          0
            C*L_o^(-1)^T   A^(1/2)]
     L_f * L_f^T = [L_o*L_o^T     C^T
-                   C             A   ]
+                   C             A + C*L_o^(-1)^T*L_o^(-1)*C^T]
     """
     # First form [L_o   0]
     chol_f_top = np.concatenate((chol_old, np.zeros((chol_old.shape[0], 1))),
                                 axis=1)
 
     # Form the new terms [C*L_o^(-1)^T   A^(1/2)]
-    # TODO, make sure cross_cov is correct
     chol_cross = solve_triangular(chol_old, cross_cov, lower=True)
-    chol_new, _ = cho_factor(cov_new, lower=True)
+    try:
+        chol_new, _ = cho_factor(cov_new - chol_cross.T @ chol_cross,
+                                 lower=True)
+    except np.linalg.LinAlgError:
+        return chol_old
+
     chol_f_bot = np.concatenate((chol_cross.T, chol_new), axis=1)
 
     chol_f = np.concatenate((chol_f_top,
@@ -98,9 +102,10 @@ def _sample_then_update(x_new, x_shell, y_diff_shell, chol_shell,
     y_diff = y_diff_shell[:n, :]
     chol = chol_shell[:n, :n]
 
-    x_new.resize((1, x_old.shape[1]))
+    x_new = np.array(x_new).reshape(1, -1)
 
     mx = gp_params['mean_fun'](x_new, **gp_params['mean_params'])
+    # This intentionally does not include the noise
     vxx = gp_params['cov_fun'](x=x_new, y=x_new, **gp_params['cov_params'])
     vyx = gp_params['cov_fun'](x=x_old, y=x_new, **gp_params['cov_params'])
 
@@ -108,26 +113,30 @@ def _sample_then_update(x_new, x_shell, y_diff_shell, chol_shell,
     cond_mean, cond_cov = mvn_cond_dist(mx, y_diff, vxx, vyx, chol)
     post_eval = np.random.multivariate_normal(cond_mean.flatten(), cond_cov)
 
-    post_eval.resize(cond_mean.shape)
-    n1 = n + 1
-    x_shell[:n1, :] = np.concatenate((x_old, x_new), 0)
-    y_diff_shell[:n1, :] = np.concatenate((y_diff, post_eval - mx))
-    chol_shell[:n1, :n1] = update_chol(chol, vxx, vyx)
+    sampling_track.append({'x': x_new, 'y': post_eval, 'cond_mean': cond_mean})
 
+    # numerical issues will first happen with the cholesky update
+    new_chol = update_chol(chol, vxx, vyx)
+    if new_chol.shape == chol.shape:
+        return cond_mean
+
+    n1 = n + 1
+    chol_shell[:n1, :n1] = new_chol
+    x_shell[:n1, :] = np.concatenate((x_old, x_new), 0)
+    y_diff_n1 = post_eval.reshape(cond_mean.shape) - mx
+    y_diff_shell[:n1, :] = np.concatenate((y_diff, y_diff_n1))
     # This is necessary so the n_list object changes the behavior of other
     # iterations in the sampling, overwriting n_list entirely would not have
     # the desired effect
     n_list[0] = n1
 
-    # For debugging purposes
-    sampling_track.append({'x': x_new, 'y': post_eval})
-
-    return post_eval
+    return post_eval[0]
 
 
-def samp_opt(minimizer, x0, x_past=[], eval_past=[], gp_params={},
+def samp_opt(minimizer, x0, x=[], y=[], gp_params={},
              maxiter=500,
-             noise_params={'cov_fun': lambda x: np.diag(0 * np.ones(len(x)))}):
+             noise_params={'cov_fun': lambda x: np.diag(0 * np.ones(len(x)))},
+             opt_args={}):
     """ Sets up and runs the Bayesian optimization using the provided
     optimizer.
 
@@ -156,37 +165,40 @@ def samp_opt(minimizer, x0, x_past=[], eval_past=[], gp_params={},
         cond_var (narray): conditional variance matrix for x
     """
     # For non-stochastic objective functions, define that as the mean_fun
-    chol_shell, y_diff_shell, x_shell, n_list = set_up_gp(gp_params, x_past,
-                                                          eval_past, maxiter,
-                                                          noise_params)
+    chol_shell, y_diff_shell, x_shell, n_list = gp_setup(gp_params, x,
+                                                         y, maxiter,
+                                                         noise_params)
     sampling_track = []
 
     opt_out = minimizer(_sample_then_update,
                         x0,
                         args=(x_shell, y_diff_shell, chol_shell, gp_params,
-                              n_list, sampling_track))
+                              n_list, sampling_track),
+                        **opt_args)
     return {'opt_out': opt_out, 'sampling_track': sampling_track}
 
 
-def set_up_gp(gp_params, x_past, eval_past, maxiter, noise_params):
+def gp_setup(gp_params, x, y, maxiter, noise_params):
 
     # We can allocate a larger than necessary matrix and vector
     # so later iterations do not overwrite the underlying components
-    n = len(eval_past)
-    chol_shell = np.empty((n + maxiter, n + maxiter))
+    n = len(y)
+    chol_shell = np.zeros((n + maxiter, n + maxiter))
     y_diff_shell = np.empty((n + maxiter, 1))
-    x_shell = np.empty((n + maxiter, x_past.shape[1]))
+    if len(x.shape) < 2:
+        x = x.reshape(-1, 1)
+    x_shell = np.empty((n + maxiter, x.shape[1]))
 
-    cov = gp_params['cov_fun'](x=x_past, y=x_past, **gp_params['cov_params'])
-    noise_cov = noise_params['cov_fun'](x_past, **noise_params['cov_params'])
+    cov = gp_params['cov_fun'](x=x, y=x, **gp_params['cov_params'])
+    noise_cov = noise_params['cov_fun'](x, **noise_params['cov_params'])
     # This is the only time we'll add the noise values
-    chol, lower = cho_factor(cov + noise_cov, lower=True)
+    chol, _ = cho_factor(cov + noise_cov, lower=True)
     chol_shell[:n, :n] = chol
 
-    y_expect = gp_params['mean_fun'](x_past, **gp_params['mean_params'])
-    y_diff = eval_past.reshape((-1, 1)) - y_expect
+    y_expect = gp_params['mean_fun'](x, **gp_params['mean_params'])
+    y_diff = y.reshape((-1, 1)) - y_expect
     y_diff_shell[:n, :] = y_diff
 
-    x_shell[:n, :] = x_past
+    x_shell[:n, :] = x
 
     return chol_shell, y_diff_shell, x_shell, [n]
