@@ -62,6 +62,15 @@ P(x_i|DATA, x_{j<i}) \sim Gaussian
 #### Example
 ###### Example with known objective function
 
+Here's an example of observing an unknown objective with noise.
+The black dots indicate the "search path" used by the algorithm.
+![Bimodal objective function](opt_route_visualized.png)
+
+After finding the optimum over different starting values with different
+possible estimated objective functions, we'll get a distributino of the extrema.
+![Distribution of extrema](hist_min_samples.png)
+
+
 ###### Example with historical objective function evaluations
 
 ###### Example with noisy historical objective function evaluations
