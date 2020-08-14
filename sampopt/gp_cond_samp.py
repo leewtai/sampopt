@@ -74,7 +74,7 @@ def update_chol(chol_old, cov_new, cross_cov):
 
 
 def _sample_then_update(x_new, x_shell, y_diff_shell, chol_shell,
-                        gp_params, n_list, sampling_track):
+                        gp_params, n_list, sampling_track=[]):
     """ Returns a sample from the predictive distribution at x given the
     data from x_old then updates the objective function, inplace,
     so the predictive distribution is from [x_old, x]^T.
